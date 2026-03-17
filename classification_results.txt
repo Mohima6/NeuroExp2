@@ -1,0 +1,5 @@
+Test Set Accuracies
+==============================
+SVM                 : 0.8367
+Random Forest       : 0.8878
+Gaussian Process    : 0.5000
