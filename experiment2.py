@@ -48,7 +48,7 @@ elif os.path.exists('fingerprint_data.csv'):
     print("Converted CSV to NPY.")
 else:
     print("synthetic data")
-    print("Building correlation matrix")
+    print("correlation matrix")
     base_corr = np.eye(n_regions)
     for net in range(n_networks):
         mask = region_to_network == net
@@ -140,7 +140,7 @@ metrics = {
 }
 session_pairs = [(0,1), (0,2), (0,3), (1,2), (1,3), (2,3)]
 results = {name: [] for name in metrics}
-print("\nStarting fingerprinting analysis")
+print("\nStarting fingerprinting")
 total_pairs = len(session_pairs)
 pair_count = 0
 for s1, s2 in session_pairs:
@@ -182,7 +182,7 @@ for s1, s2 in session_pairs:
         results[name].append(acc_avg)
 output_lines = []
 output_lines.append("="*75)
-output_lines.append("Fingerprinting Accuracy (averaged over session pairs)")
+output_lines.append(" Accuracy (averaged over session pairs)")
 output_lines.append("="*75)
 header = f"{'Metric':<25} {'Pair(0,1)':<10} {'Pair(0,2)':<10} {'Pair(0,3)':<10} " \
         f"{'Pair(1,2)':<10} {'Pair(1,3)':<10} {'Pair(2,3)':<10} {'Mean':<10}"
@@ -202,6 +202,6 @@ with open('fingerprinting_results.txt', 'w') as f:
         f.write(line + '\n')
 print("\nResults saved to 'fingerprinting_results.txt'.")
 print("\nData files:")
-print("  - fingerprint_correlations.npy (fast load)")
-print("  - fingerprint_data.csv (human‑readable, 400 rows × 2082 columns)")
-print("  - fingerprinting_results.txt (accuracy table)")
+print("  - fingerprint_correlations.npy")
+print("  - fingerprint_data.csv")
+print("  - fingerprinting_results.txt")
