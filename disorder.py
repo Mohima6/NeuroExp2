@@ -230,7 +230,7 @@ plt.ylabel('Euclidean distance (LEC space)')
 plt.title('Within- vs between-class distances')
 plt.savefig('figures/figure11_distance_boxplot.png', dpi=150)
 plt.close()
-# 12. 3D brain visualization (top 10 discriminative connections)
+# 12. 3D brain 
 try:
     from nilearn import plotting
     coords = np.random.randn(n_regions, 3) * 10
@@ -274,10 +274,10 @@ print("="*50)
 for name in models:
     print(f"{name:20}: {test_accuracies[name]:.4f}")
 print("="*50)
-# Save to a text file
+# Save to text file
 with open('classification_results.txt', 'w') as f:
     f.write("Test Set Accuracies\n")
     f.write("="*30 + "\n")
     for name in models:
         f.write(f"{name:20}: {test_accuracies[name]:.4f}\n")
-print("\nResults also saved to 'classification_results.txt'.")
+print("\nResults saved to 'classification_results.txt'.")
