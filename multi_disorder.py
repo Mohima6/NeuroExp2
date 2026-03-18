@@ -48,11 +48,11 @@ eigvals = np.linalg.eigvalsh(base_corr)
 if np.min(eigvals) < 1e-6:
     base_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
 alterations = {
-    'Healthy': {0:1.0, 1:1.0, 2:1.0, 3:1.0},  # no change
-    'Alzheimer': {0:0.7, 1:1.0, 2:1.0, 3:1.0},  # DMN (net0) reduced
-    'Autism': {0:1.0, 1:0.7, 2:1.0, 3:1.0},     # Social brain (net1) reduced
-    'Parkinson': {0:1.0, 1:1.0, 2:0.7, 3:1.0},   # Motor (net2) reduced
-    'Schizophrenia': {0:1.0, 1:1.0, 2:1.0, 3:0.7} # Fronto‑parietal (net3) reduced
+    'Healthy': {0:1.0, 1:1.0, 2:1.0, 3:1.0},  
+    'Alzheimer': {0:0.7, 1:1.0, 2:1.0, 3:1.0},  
+    'Autism': {0:1.0, 1:0.7, 2:1.0, 3:1.0},     
+    'Parkinson': {0:1.0, 1:1.0, 2:0.7, 3:1.0},   
+    'Schizophrenia': {0:1.0, 1:1.0, 2:1.0, 3:0.7} 
 }
 all_corr = []
 labels = []
@@ -186,7 +186,7 @@ for g, group in enumerate(group_names):
     plt.title(f'Top 2% edges – {group}')
     plt.savefig(f'figures/figure3_graph_{group}.png', dpi=150)
     plt.close()
-# 4. PCA projection
+# 4. PCA 
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X_scaled)
 plt.figure(figsize=(8, 6))
@@ -287,7 +287,7 @@ plt.close()
 # 12. 3D brain plots for each disorder 
 try:
     from nilearn import plotting
-    coords = np.random.randn(n_regions, 3) * 10  # fake MNI
+    coords = np.random.randn(n_regions, 3) * 10  
     healthy_mean = np.mean(all_corr[labels==0], axis=0)
     for g in [1,2,3,4]:
         disorder_mean = np.mean(all_corr[labels==g], axis=0)
@@ -335,11 +335,11 @@ def predict_new_subject(new_corr_matrix, model, scaler, group_names):
     proba = model.predict_proba(feat_scaled)[0]
     print(f"Predicted group: {group_names[pred]} (probability: {proba[pred]:.3f})")
     return group_names[pred], proba
-test_idx = np.where(y_test == 2)[0][0]  # Autism subject
+test_idx = np.where(y_test == 2)[0][0]  
 new_mat = all_corr[test_idx]  
 print("\nPrediction demo:")
 predict_new_subject(new_mat, best_models['Random Forest'], scaler, group_names)
 import joblib
 joblib.dump(best_models['Random Forest'], 'best_model.pkl')
 joblib.dump(scaler, 'scaler.pkl')
-print("\nModel and scaler saved for future predictions.")
+print("\nModel and scaler saved.")
