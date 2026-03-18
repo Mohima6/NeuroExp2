@@ -45,10 +45,10 @@ elif os.path.exists('fingerprint_data.csv'):
     np.save('fingerprint_correlations.npy', all_corr)
     np.save('fingerprint_subject_ids.npy', subject_ids)
     np.save('fingerprint_session_ids.npy', session_ids)
-    print("Converted CSV to NPY for faster future loading.")
+    print("Converted CSV to NPY.")
 else:
-    print("Generating synthetic fingerprint data")
-    print("  Building base correlation matrix...")
+    print("synthetic data")
+    print("Building correlation matrix")
     base_corr = np.eye(n_regions)
     for net in range(n_networks):
         mask = region_to_network == net
@@ -64,7 +64,7 @@ else:
     eigvals = np.linalg.eigvalsh(base_corr)
     if np.min(eigvals) < 1e-6:
         base_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
-    print("  Generating subject‑specific true FCs...")
+    print("subject‑specific true FCs")
     subject_true = []
     for s in range(n_subjects):
         if s % 20 == 0:
@@ -81,7 +81,7 @@ else:
             subj_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
         subject_true.append(subj_corr)
     subject_true = np.array(subject_true)
-    print("  Generating session‑specific FCs")
+    print("session‑specific FCs")
     all_corr = np.zeros((n_subjects, n_sessions, n_regions, n_regions))
     for s in range(n_subjects):
         if s % 10 == 0:
@@ -103,7 +103,7 @@ else:
     np.save('fingerprint_correlations.npy', all_corr)
     np.save('fingerprint_subject_ids.npy', subject_ids)
     np.save('fingerprint_session_ids.npy', session_ids)
-    print("  Saving data to CSV for inspection...")
+    print("Saving data to CSV")
     i_upper = np.triu_indices(n_regions, k=1)
     X_flat = np.array([corr[i_upper] for corr in all_corr])
     col_names = [f"edge_{i}_{j}" for i, j in zip(i_upper[0], i_upper[1])]
@@ -200,8 +200,8 @@ print("\n" + "\n".join(output_lines))
 with open('fingerprinting_results.txt', 'w') as f:
     for line in output_lines:
         f.write(line + '\n')
-print("\nResults also saved to 'fingerprinting_results.txt'.")
-print("\nData files available:")
+print("\nResults saved to 'fingerprinting_results.txt'.")
+print("\nData files:")
 print("  - fingerprint_correlations.npy (fast load)")
 print("  - fingerprint_data.csv (human‑readable, 400 rows × 2082 columns)")
 print("  - fingerprinting_results.txt (accuracy table)")
