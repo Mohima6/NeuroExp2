@@ -22,10 +22,6 @@ from matplotlib.patches import Patch
 from scipy.stats import wishart
 import warnings
 warnings.filterwarnings('ignore')
-
-# ------------------------------------------------------------
-# Parameters
-# ------------------------------------------------------------
 n_subjects_per_group = 200
 n_groups = 5
 group_names = ['Healthy', 'Alzheimer', 'Autism', 'Parkinson', 'Schizophrenia']
@@ -35,11 +31,7 @@ n_networks = 7
 network_sizes = [10, 8, 12, 9, 11, 7, 8]
 region_to_network = np.repeat(np.arange(n_networks), network_sizes)
 np.random.seed(123)
-
-# ------------------------------------------------------------
-# Generate base correlation matrix (population average)
-# ------------------------------------------------------------
-print("Generating base correlation matrix...")
+print("correlation matrix")
 base_corr = np.eye(n_regions)
 for net in range(n_networks):
     mask = region_to_network == net
@@ -55,13 +47,6 @@ for i in range(n_regions):
 eigvals = np.linalg.eigvalsh(base_corr)
 if np.min(eigvals) < 1e-6:
     base_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
-
-# ------------------------------------------------------------
-# Define group-specific alterations
-# ------------------------------------------------------------
-# Each alteration is a multiplier applied to within-network edges
-# (1.0 = no change, <1 = reduced connectivity, >1 = increased)
-# Here we reduce connectivity in specific networks for each disorder
 alterations = {
     'Healthy': {0:1.0, 1:1.0, 2:1.0, 3:1.0},  # no change
     'Alzheimer': {0:0.7, 1:1.0, 2:1.0, 3:1.0},  # DMN (net0) reduced
@@ -69,35 +54,26 @@ alterations = {
     'Parkinson': {0:1.0, 1:1.0, 2:0.7, 3:1.0},   # Motor (net2) reduced
     'Schizophrenia': {0:1.0, 1:1.0, 2:1.0, 3:0.7} # Fronto‑parietal (net3) reduced
 }
-
-# ------------------------------------------------------------
-# Generate subject data
-# ------------------------------------------------------------
 all_corr = []
 labels = []
 subject_group = []
-
 for g, group in enumerate(group_names):
-    print(f"Generating {group}...")
+    print(f"Generating {group}")
     for s in range(n_subjects_per_group):
-        # Start from base
         subj_corr = base_corr.copy()
-        # Apply group‑specific alteration
         for net, factor in alterations[group].items():
             mask = region_to_network == net
             subj_corr[np.ix_(mask, mask)] *= factor
-        # Add random perturbation
         perturbation = 0.1 * np.random.randn(n_regions, n_regions)
         perturbation = (perturbation + perturbation.T) / 2
         np.fill_diagonal(perturbation, 0)
         subj_corr += perturbation
-        # Ensure positive definiteness
         subj_corr = np.clip(subj_corr, -1, 1)
         np.fill_diagonal(subj_corr, 1.0)
         eigvals = np.linalg.eigvalsh(subj_corr)
         if np.min(eigvals) < 1e-6:
             subj_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
-        # Add Wishart noise to simulate session variability
+        # Add Wishart noise 
         dof = n_regions + 10
         scale = subj_corr * dof
         eigvals_scale = np.linalg.eigvalsh(scale)
@@ -109,17 +85,11 @@ for g, group in enumerate(group_names):
         all_corr.append(noisy_corr)
         labels.append(g)
         subject_group.append(group)
-
 all_corr = np.array(all_corr)
 labels = np.array(labels)
 print(f"Generated {len(all_corr)} subjects.")
-
-# ------------------------------------------------------------
-# Save data to NPY and CSV
-# ------------------------------------------------------------
 np.save('multi_disorder_correlations.npy', all_corr)
 np.save('multi_disorder_labels.npy', labels)
-# Also save flattened version for easy inspection
 i_upper = np.triu_indices(n_regions, k=1)
 X_flat = np.array([corr[i_upper] for corr in all_corr])
 col_names = [f"edge_{i}_{j}" for i,j in zip(i_upper[0], i_upper[1])]
@@ -128,50 +98,33 @@ df.insert(0, 'group', subject_group)
 df.insert(0, 'label', labels)
 df.to_csv('multi_disorder_data.csv', index=False)
 print("Data saved.")
-
-# ------------------------------------------------------------
-# Apply LEC transformation (Cholesky)
-# ------------------------------------------------------------
 def lec_vectorize(mat):
     L = cholesky(mat, lower=True)
     i_lower = np.tril_indices_from(L)
     return L[i_lower]
-
-print("Applying LEC transformation...")
+print("Applying LEC transformation")
 X = np.array([lec_vectorize(m) for m in all_corr])
 y = labels
-
-# Standardize
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-
-# Train/test split (80/20 stratified)
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42, stratify=y)
-
-# ------------------------------------------------------------
-# Train multi‑class models
-# ------------------------------------------------------------
 models = {
     'SVM': OneVsRestClassifier(SVC(probability=True, random_state=42)),
     'Random Forest': RandomForestClassifier(random_state=42),
     'Gaussian Process': OneVsRestClassifier(GaussianProcessClassifier(kernel=RBF(), random_state=42))
 }
-
 param_grids = {
     'SVM': {'estimator__C': [0.1, 1, 10], 'estimator__gamma': ['scale', 0.01, 0.1]},
     'Random Forest': {'n_estimators': [50, 100, 200], 'max_depth': [5, 10, None]},
     'Gaussian Process': {}  # default kernel
 }
-
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
 best_models = {}
 test_probs = {}
 test_preds = {}
 test_accuracies = {}
-
-print("\nTraining models...")
+print("\nTraining models")
 for name in models:
     print(f"\n{name}:")
     if param_grids[name]:
@@ -187,14 +140,9 @@ for name in models:
     test_accuracies[name] = accuracy_score(y_test, test_preds[name])
     print(f"  Test accuracy: {test_accuracies[name]:.3f}")
     print(classification_report(y_test, test_preds[name], target_names=group_names))
-
-# ------------------------------------------------------------
-# Generate figures
-# ------------------------------------------------------------
 os.makedirs('figures', exist_ok=True)
-print("\nGenerating figures...")
-
-# 1. Group-average FC heatmaps
+print("\nGenerating figures")
+# 1. Group-avg. FC heatmaps
 fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 axes = axes.flatten()
 for g, group in enumerate(group_names):
@@ -206,8 +154,7 @@ axes[5].axis('off')
 plt.tight_layout()
 plt.savefig('figures/figure1_group_averages.png', dpi=150)
 plt.close()
-
-# 2. Difference matrices (each disorder vs healthy)
+# 2. Difference matrices
 healthy_mean = np.mean(all_corr[labels==0], axis=0)
 fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 axes = axes.flatten()
@@ -220,8 +167,7 @@ for idx, g in enumerate([1,2,3,4]):
 plt.tight_layout()
 plt.savefig('figures/figure2_difference_matrices.png', dpi=150)
 plt.close()
-
-# 3. Brain network graph for each group (top 2% edges)
+# 3. Brain network graph
 for g, group in enumerate(group_names):
     mean_mat = np.mean(all_corr[labels==g], axis=0)
     G = nx.Graph()
@@ -240,7 +186,6 @@ for g, group in enumerate(group_names):
     plt.title(f'Top 2% edges – {group}')
     plt.savefig(f'figures/figure3_graph_{group}.png', dpi=150)
     plt.close()
-
 # 4. PCA projection
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X_scaled)
@@ -252,7 +197,6 @@ plt.ylabel('PC2')
 plt.title('PCA of LEC-transformed FCs')
 plt.savefig('figures/figure4_pca.png', dpi=150)
 plt.close()
-
 # 5. t-SNE
 tsne = TSNE(n_components=2, random_state=42, perplexity=30)
 X_tsne = tsne.fit_transform(X_scaled)
@@ -262,8 +206,7 @@ plt.colorbar(scatter, ticks=range(5), label='Group')
 plt.title('t-SNE of LEC-transformed FCs')
 plt.savefig('figures/figure5_tsne.png', dpi=150)
 plt.close()
-
-# 6. Distance clustermap with group colors
+# 6. Distance clustermap 
 D = pairwise_distances(X_scaled, metric='euclidean')
 group_colors = [plt.cm.tab10(g/5) for g in y]
 g = sns.clustermap(D, cmap='viridis', method='average',
@@ -276,8 +219,7 @@ g.ax_heatmap.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(
 g.ax_heatmap.set_title('Pairwise distances with hierarchical clustering')
 plt.savefig('figures/figure6_clustermap.png', dpi=150)
 plt.close()
-
-# 7. Confusion matrix (best model, e.g., Random Forest)
+# 7. Confusion matrix 
 cm = confusion_matrix(y_test, test_preds['Random Forest'])
 disp = ConfusionMatrixDisplay(cm, display_labels=group_names)
 disp.plot(cmap='Blues', xticks_rotation=45)
@@ -285,11 +227,9 @@ plt.title('Random Forest Confusion Matrix')
 plt.tight_layout()
 plt.savefig('figures/figure7_confusion_matrix.png', dpi=150)
 plt.close()
-
-# 8. ROC curves (one‑vs‑rest)
+# 8. ROC curves 
 from sklearn.metrics import roc_curve
 from sklearn.preprocessing import label_binarize
-
 y_test_bin = label_binarize(y_test, classes=range(5))
 for name in test_probs:
     plt.figure(figsize=(8, 6))
@@ -304,13 +244,7 @@ for name in test_probs:
     plt.legend()
     plt.savefig(f'figures/figure8_roc_{name}.png', dpi=150)
     plt.close()
-
-
-
-
-
-
-# 9. Feature importance (Random Forest) – top 20 overall
+# 9. Feature importance 
 rf = best_models['Random Forest']
 importances = rf.feature_importances_
 top_idx = np.argsort(importances)[-20:]
@@ -322,7 +256,6 @@ plt.title('Top 20 features (Random Forest)')
 plt.tight_layout()
 plt.savefig('figures/figure9_feature_importance.png', dpi=150)
 plt.close()
-
 # 10. Model accuracy comparison
 accuracies = [test_accuracies[name] for name in models]
 plt.figure(figsize=(6, 5))
@@ -335,7 +268,6 @@ for bar, acc in zip(bars, accuracies):
              f'{acc:.3f}', ha='center')
 plt.savefig('figures/figure10_model_comparison.png', dpi=150)
 plt.close()
-
 # 11. Within‑ vs between‑class distances
 within_dists = []
 between_dists = []
@@ -352,8 +284,7 @@ plt.ylabel('Euclidean distance')
 plt.title('Within‑ vs between‑class distances')
 plt.savefig('figures/figure11_distance_boxplot.png', dpi=150)
 plt.close()
-
-# 12. 3D brain plots for each disorder (top 10 discriminative connections)
+# 12. 3D brain plots for each disorder 
 try:
     from nilearn import plotting
     coords = np.random.randn(n_regions, 3) * 10  # fake MNI
@@ -375,9 +306,8 @@ try:
         plt.savefig(f'figures/figure12_3d_{group_names[g]}.png', dpi=150)
         plt.close()
 except ImportError:
-    print("nilearn not installed; skipping 3D figures.")
-
-# 13. Individual fingerprint matrices (one per group)
+    print("nilearn not installed.")
+# 13. Individual fingerprint matrices 
 n_examples = 3
 fig, axes = plt.subplots(n_groups, n_examples, figsize=(3*n_examples, 2*n_groups))
 for g in range(n_groups):
@@ -389,12 +319,7 @@ for g in range(n_groups):
 plt.tight_layout()
 plt.savefig('figures/figure13_individual_fingerprints.png', dpi=150)
 plt.close()
-
-print("\nAll figures saved in 'figures/' folder.")
-
-# ------------------------------------------------------------
-# Prediction demo
-# ------------------------------------------------------------
+print("\nfigures saved in 'figures/' folder.")
 def predict_new_subject(new_corr_matrix, model, scaler, group_names):
     """
     new_corr_matrix: 65x65 correlation matrix
@@ -410,14 +335,10 @@ def predict_new_subject(new_corr_matrix, model, scaler, group_names):
     proba = model.predict_proba(feat_scaled)[0]
     print(f"Predicted group: {group_names[pred]} (probability: {proba[pred]:.3f})")
     return group_names[pred], proba
-
-# Example: take a test subject from our dataset
-test_idx = np.where(y_test == 2)[0][0]  # an Autism subject
-new_mat = all_corr[test_idx]  # this is a correlation matrix
+test_idx = np.where(y_test == 2)[0][0]  # Autism subject
+new_mat = all_corr[test_idx]  
 print("\nPrediction demo:")
 predict_new_subject(new_mat, best_models['Random Forest'], scaler, group_names)
-
-# Save the best model and scaler for later use
 import joblib
 joblib.dump(best_models['Random Forest'], 'best_model.pkl')
 joblib.dump(scaler, 'scaler.pkl')
