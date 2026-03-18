@@ -18,29 +18,16 @@ import networkx as nx
 import os
 import warnings
 from matplotlib.patches import Patch
-
 warnings.filterwarnings('ignore')
-
-# ------------------------------------------------------------
-# Create output directory for figures
-# ------------------------------------------------------------
 os.makedirs('figures', exist_ok=True)
-
-# ------------------------------------------------------------
-# Load your CSV data
-# ------------------------------------------------------------
-print("Loading data...")
+print("Loading data")
 df_corr = pd.read_csv('synthetic_correlations.csv')
 df_pmat = pd.read_csv('synthetic_pmat.csv')
-
-X_flat = df_corr.values.astype(np.float64)                # shape (977, 2080)
+X_flat = df_corr.values.astype(np.float64)                
 pmat_cr = df_pmat['PMAT_A_CR'].values.astype(np.float64)
-
 n_subjects, n_edges = X_flat.shape
 n_regions = 65
-
-# Reconstruct full 65x65 correlation matrices
-print("Reconstructing correlation matrices...")
+print("correlation matrices")
 i_upper = np.triu_indices(n_regions, k=1)
 all_corr = np.zeros((n_subjects, n_regions, n_regions))
 for subj in range(n_subjects):
@@ -51,66 +38,39 @@ for subj in range(n_subjects):
     mat = mat + mat.T
     np.fill_diagonal(mat, 1.0)
     all_corr[subj] = mat
-
 print(f"Loaded {n_subjects} correlation matrices.")
-
-# ------------------------------------------------------------
-# Create binary label from PMAT_A_CR (median split)
-# 0 = high PMAT (simulating healthy), 1 = low PMAT (simulating disorder)
-# ------------------------------------------------------------
 median = np.median(pmat_cr)
 labels = (pmat_cr < median).astype(int)
 print(f"Class distribution: 0 (high) = {sum(labels==0)}, 1 (low) = {sum(labels==1)}")
-
-# ------------------------------------------------------------
-# Define network mapping (for visualisation)
-# Must match the network sizes used during generation
 network_sizes = [10, 8, 12, 9, 11, 7, 8]
 region_to_network = np.repeat(np.arange(7), network_sizes)
-
-# ------------------------------------------------------------
-# Apply LEC transformation (Cholesky + vectorize lower triangle)
-# ------------------------------------------------------------
 def lec_vectorize(mat):
     L = cholesky(mat, lower=True)
     i_lower = np.tril_indices_from(L)
     return L[i_lower]
-
-print("Applying LEC transformation...")
+print("Applying LEC transformation")
 X = np.array([lec_vectorize(m) for m in all_corr])
 y = labels
-
-# Standardize features (important for SVM and GP)
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-
-# Train/test split (80/20 stratified)
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42, stratify=y)
-
-# ------------------------------------------------------------
-# Define models and hyperparameter grids
-# ------------------------------------------------------------
 models = {
     'SVM': SVC(probability=True, random_state=42),
     'Random Forest': RandomForestClassifier(random_state=42),
     'Gaussian Process': GaussianProcessClassifier(kernel=RBF(), random_state=42)
 }
-
 param_grids = {
     'SVM': {'C': [0.1, 1, 10], 'gamma': ['scale', 0.01, 0.1]},
     'Random Forest': {'n_estimators': [50, 100, 200], 'max_depth': [5, 10, None]},
     'Gaussian Process': {}  # use default kernel
 }
-
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
 best_models = {}
 test_probs = {}
 test_preds = {}
 test_accuracies = {}
-
-print("\nTraining models...")
+print("\nTraining models")
 for name in models:
     print(f"\n{name}:")
     if param_grids[name]:
@@ -124,16 +84,10 @@ for name in models:
     test_preds[name] = best_models[name].predict(X_test)
     test_accuracies[name] = accuracy_score(y_test, test_preds[name])
     print(f"  Test accuracy: {test_accuracies[name]:.3f}")
-
-# ------------------------------------------------------------
-# Generate all figures
-# ------------------------------------------------------------
-print("\nGenerating figures...")
-
-# ----- 1. Group-average FC heatmaps -----
+print("\nfigures")
+# 1. Group-avg. FC heatmaps 
 mean_high = np.mean(all_corr[labels==0], axis=0)
 mean_low = np.mean(all_corr[labels==1], axis=0)
-
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 sns.heatmap(mean_high, ax=axes[0], cmap='RdBu_r', center=0,
             xticklabels=False, yticklabels=False, cbar=True)
@@ -144,12 +98,10 @@ axes[1].set_title('Low PMAT group average FC')
 plt.tight_layout()
 plt.savefig('figures/figure1_group_averages.png', dpi=150)
 plt.close()
-
-# ----- 2. Difference matrix with network boundaries -----
+# 2. Diff. matrix with network boundaries 
 diff_mat = np.abs(mean_high - mean_low)
 network_order = np.argsort(region_to_network)
 diff_sorted = diff_mat[np.ix_(network_order, network_order)]
-
 plt.figure(figsize=(8, 7))
 sns.heatmap(diff_sorted, cmap='Reds', cbar_kws={'label': 'Absolute difference'},
             xticklabels=False, yticklabels=False, square=True)
@@ -167,24 +119,16 @@ plt.title('Group difference (High vs Low PMAT) with network boundaries')
 plt.tight_layout()
 plt.savefig('figures/figure2_difference_matrix.png', dpi=150)
 plt.close()
-
-# ----- 3. Brain network graph (top 2% edges of high PMAT group) -----
+# 3. Brain network graph (top 2% edges of high PMAT group) 
 G = nx.Graph()
 threshold = np.percentile(np.abs(mean_high[np.triu_indices_from(mean_high, k=1)]), 98)
-
-# First add ALL nodes (so layout knows about them)
 for i in range(n_regions):
     G.add_node(i, network=region_to_network[i])
-
-# Now generate positions (spring_layout uses the current graph)
 pos = nx.spring_layout(G, seed=42, iterations=50)
-
-# Then add edges based on threshold
 for i in range(n_regions):
     for j in range(i+1, n_regions):
         if np.abs(mean_high[i, j]) >= threshold:
             G.add_edge(i, j, weight=mean_high[i, j])
-
 plt.figure(figsize=(10, 8))
 colors = [region_to_network[n] for n in G.nodes]
 nx.draw(G, pos, node_color=colors, cmap='tab10', with_labels=False,
@@ -192,8 +136,7 @@ nx.draw(G, pos, node_color=colors, cmap='tab10', with_labels=False,
 plt.title('Top 2% edges of high PMAT group FC')
 plt.savefig('figures/figure3_brain_graph.png', dpi=150)
 plt.close()
-
-# ----- 4. PCA projection -----
+# 4. PCA projection 
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X_scaled)
 plt.figure(figsize=(8, 6))
@@ -204,8 +147,7 @@ plt.ylabel('PC2')
 plt.title('PCA of LEC-transformed FCs')
 plt.savefig('figures/figure4_pca.png', dpi=150)
 plt.close()
-
-# ----- 5. t-SNE embedding -----
+# 5. t-SNE embedding 
 tsne = TSNE(n_components=2, random_state=42, perplexity=30)
 X_tsne = tsne.fit_transform(X_scaled)
 plt.figure(figsize=(8, 6))
@@ -214,30 +156,21 @@ plt.colorbar(scatter, ticks=[0, 1], label='Group')
 plt.title('t-SNE of LEC-transformed FCs')
 plt.savefig('figures/figure5_tsne.png', dpi=150)
 plt.close()
-
-# ----- 6. Enhanced distance clustermap with group colors -----
+# 6. Enhanced distance clustermap with group colors 
 D = pairwise_distances(X_scaled, metric='euclidean')
-
-# Create a color mapping for groups (0=high, 1=low)
 group_colors = ['skyblue' if g == 0 else 'salmon' for g in y]
-
-# Create the clustermap
 g = sns.clustermap(D, cmap='viridis', method='average',
                    figsize=(10, 9),
                    cbar_kws={'label': 'Euclidean distance (LEC space)'},
                    row_colors=group_colors, col_colors=group_colors,
                    xticklabels=False, yticklabels=False)
-
-# Add a legend for group colors
 legend_elements = [Patch(facecolor='skyblue', label='High PMAT (healthy)'),
                    Patch(facecolor='salmon', label='Low PMAT (disorder)')]
 g.ax_heatmap.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.2, 1))
-
 g.ax_heatmap.set_title('Pairwise distances with hierarchical clustering')
 plt.savefig('figures/figure6_distance_clustermap_annotated.png', dpi=150)
 plt.close()
-
-# ----- 7. Confusion matrices for each model -----
+# 7. Confusion matrices 
 fig, axes = plt.subplots(1, 3, figsize=(15, 4))
 for i, (name, preds) in enumerate(test_preds.items()):
     cm = confusion_matrix(y_test, preds)
@@ -247,18 +180,16 @@ for i, (name, preds) in enumerate(test_preds.items()):
 plt.tight_layout()
 plt.savefig('figures/figure7_confusion_matrices.png', dpi=150)
 plt.close()
-
-# ----- 8. ROC curves (all models overlaid) -----
+# 8. ROC curves 
 plt.figure(figsize=(8, 6))
 for name in test_probs:
     RocCurveDisplay.from_predictions(y_test, test_probs[name], name=name, ax=plt.gca())
 plt.plot([0, 1], [0, 1], 'k--', label='Chance')
-plt.title('ROC Curves')
+plt.title('ROC Curves') 
 plt.legend()
 plt.savefig('figures/figure8_roc_curves.png', dpi=150)
 plt.close()
-
-# ----- 9. Feature importance (Random Forest) -----
+# 9. Feature importance
 rf = best_models['Random Forest']
 importances = rf.feature_importances_
 top_idx = np.argsort(importances)[-20:]
@@ -270,8 +201,7 @@ plt.title('Top 20 features (Random Forest)')
 plt.tight_layout()
 plt.savefig('figures/figure9_feature_importance.png', dpi=150)
 plt.close()
-
-# ----- 10. Model accuracy comparison -----
+# 10. Model accuracy comparison 
 accuracies = [test_accuracies[name] for name in models]
 plt.figure(figsize=(6, 5))
 bars = plt.bar(models.keys(), accuracies, color=['skyblue', 'lightgreen', 'salmon'])
@@ -283,8 +213,7 @@ for bar, acc in zip(bars, accuracies):
              f'{acc:.3f}', ha='center')
 plt.savefig('figures/figure10_model_comparison.png', dpi=150)
 plt.close()
-
-# ----- 11. Geometry comparison: within- vs between-class distances -----
+# 11. Geometry comparison
 labels_all = y
 within_dists = []
 between_dists = []
@@ -301,11 +230,9 @@ plt.ylabel('Euclidean distance (LEC space)')
 plt.title('Within- vs between-class distances')
 plt.savefig('figures/figure11_distance_boxplot.png', dpi=150)
 plt.close()
-
-# ----- 12. 3D brain visualization (top 10 discriminative connections) -----
+# 12. 3D brain visualization (top 10 discriminative connections)
 try:
     from nilearn import plotting
-    # Generate fake coordinates for demonstration (replace with real atlas if desired)
     coords = np.random.randn(n_regions, 3) * 10
     diff = np.abs(mean_high - mean_low)
     i_upper = np.triu_indices_from(diff, k=1)
@@ -322,43 +249,32 @@ try:
     plt.savefig('figures/figure12_3d_brain.png', dpi=150)
     plt.close()
 except ImportError:
-    print("nilearn not installed; skipping 3D brain figure.")
-
-# ----- 13. Individual fingerprint matrices (healthy vs disorder examples) -----
-n_examples = 4  # show 4 from each group
-
-# Select indices of first 4 healthy and first 4 disordered subjects
+    print("nilearn not installed.")
+# 13. Individual fingerprint matrices 
+n_examples = 4  
 healthy_idx = np.where(y == 0)[0][:n_examples]
 disorder_idx = np.where(y == 1)[0][:n_examples]
-
 fig, axes = plt.subplots(2, n_examples, figsize=(4 * n_examples, 8))
 fig.suptitle('Individual FC matrices: Healthy (top) vs Disorder (bottom)', fontsize=16)
-
 for i, idx in enumerate(healthy_idx):
     sns.heatmap(all_corr[idx], ax=axes[0, i], cmap='RdBu_r', center=0,
                 xticklabels=False, yticklabels=False, cbar=False)
     axes[0, i].set_title(f'Healthy #{i + 1}')
-
 for i, idx in enumerate(disorder_idx):
     sns.heatmap(all_corr[idx], ax=axes[1, i], cmap='RdBu_r', center=0,
                 xticklabels=False, yticklabels=False, cbar=False)
     axes[1, i].set_title(f'Disorder #{i + 1}')
-
 plt.tight_layout()
 plt.savefig('figures/figure13_individual_fingerprints.png', dpi=150)
 plt.close()
-
 print("\nAll figures saved in 'figures/' directory.")
-
-
 print("\n" + "="*50)
 print("Test Set Accuracies")
 print("="*50)
 for name in models:
     print(f"{name:20}: {test_accuracies[name]:.4f}")
 print("="*50)
-
-# Save accuracies to a text file
+# Save to a text file
 with open('classification_results.txt', 'w') as f:
     f.write("Test Set Accuracies\n")
     f.write("="*30 + "\n")
