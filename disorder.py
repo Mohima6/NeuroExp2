@@ -98,7 +98,7 @@ axes[1].set_title('Low PMAT group average FC')
 plt.tight_layout()
 plt.savefig('figures/figure1_group_averages.png', dpi=150)
 plt.close()
-# 2. Diff. matrix with network boundaries 
+# 2. Diff. matrix 
 diff_mat = np.abs(mean_high - mean_low)
 network_order = np.argsort(region_to_network)
 diff_sorted = diff_mat[np.ix_(network_order, network_order)]
@@ -119,7 +119,7 @@ plt.title('Group difference (High vs Low PMAT) with network boundaries')
 plt.tight_layout()
 plt.savefig('figures/figure2_difference_matrix.png', dpi=150)
 plt.close()
-# 3. Brain network graph (top 2% edges of high PMAT group) 
+# 3. Brain network graph 
 G = nx.Graph()
 threshold = np.percentile(np.abs(mean_high[np.triu_indices_from(mean_high, k=1)]), 98)
 for i in range(n_regions):
@@ -156,7 +156,7 @@ plt.colorbar(scatter, ticks=[0, 1], label='Group')
 plt.title('t-SNE of LEC-transformed FCs')
 plt.savefig('figures/figure5_tsne.png', dpi=150)
 plt.close()
-# 6. Enhanced distance clustermap with group colors 
+# 6. Enhanced distance clustermap
 D = pairwise_distances(X_scaled, metric='euclidean')
 group_colors = ['skyblue' if g == 0 else 'salmon' for g in y]
 g = sns.clustermap(D, cmap='viridis', method='average',
@@ -274,7 +274,6 @@ print("="*50)
 for name in models:
     print(f"{name:20}: {test_accuracies[name]:.4f}")
 print("="*50)
-# Save to text file
 with open('classification_results.txt', 'w') as f:
     f.write("Test Set Accuracies\n")
     f.write("="*30 + "\n")
