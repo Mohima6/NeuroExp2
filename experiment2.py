@@ -160,7 +160,6 @@ for s1, s2 in session_pairs:
     subj_p2 = subject_ids[idx_p2]
     for name, dist_func in metrics.items():
         print(f"  Metric: {name}")
-        # Order 1
         pred1 = []
         n_probe = len(probe1)
         for p in range(n_probe):
@@ -169,7 +168,6 @@ for s1, s2 in session_pairs:
             dists = [dist_func(probe1[p], gallery1[g]) for g in range(len(gallery1))]
             pred1.append(subj_g1[np.argmin(dists)])
         acc1 = accuracy_score(subj_p1, pred1)
-        # Order 2
         pred2 = []
         n_probe2 = len(probe2)
         for p in range(n_probe2):
