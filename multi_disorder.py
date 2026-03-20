@@ -73,7 +73,6 @@ for g, group in enumerate(group_names):
         eigvals = np.linalg.eigvalsh(subj_corr)
         if np.min(eigvals) < 1e-6:
             subj_corr += (1e-6 - np.min(eigvals)) * np.eye(n_regions)
-        # Add Wishart noise 
         dof = n_regions + 10
         scale = subj_corr * dof
         eigvals_scale = np.linalg.eigvalsh(scale)
@@ -284,7 +283,7 @@ plt.ylabel('Euclidean distance')
 plt.title('Within‑ vs between‑class distances')
 plt.savefig('figures/figure11_distance_boxplot.png', dpi=150)
 plt.close()
-# 12. 3D brain plots for each disorder 
+# 12. 3D brain plots 
 try:
     from nilearn import plotting
     coords = np.random.randn(n_regions, 3) * 10  
