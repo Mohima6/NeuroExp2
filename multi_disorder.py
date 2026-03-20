@@ -116,7 +116,7 @@ models = {
 param_grids = {
     'SVM': {'estimator__C': [0.1, 1, 10], 'estimator__gamma': ['scale', 0.01, 0.1]},
     'Random Forest': {'n_estimators': [50, 100, 200], 'max_depth': [5, 10, None]},
-    'Gaussian Process': {}  # default kernel
+    'Gaussian Process': {}  
 }
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 best_models = {}
@@ -140,7 +140,7 @@ for name in models:
     print(f"  Test accuracy: {test_accuracies[name]:.3f}")
     print(classification_report(y_test, test_preds[name], target_names=group_names))
 os.makedirs('figures', exist_ok=True)
-print("\nGenerating figures")
+print("\nfigures")
 # 1. Group-avg. FC heatmaps
 fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 axes = axes.flatten()
@@ -283,7 +283,7 @@ plt.ylabel('Euclidean distance')
 plt.title('Within‑ vs between‑class distances')
 plt.savefig('figures/figure11_distance_boxplot.png', dpi=150)
 plt.close()
-# 12. 3D brain plots 
+# 12. brain plots 
 try:
     from nilearn import plotting
     coords = np.random.randn(n_regions, 3) * 10  
@@ -325,7 +325,6 @@ def predict_new_subject(new_corr_matrix, model, scaler, group_names):
     model: trained classifier (e.g., best_models['Random Forest'])
     scaler: fitted StandardScaler
     """
-    # Apply LEC
     L = cholesky(new_corr_matrix, lower=True)
     i_lower = np.tril_indices_from(L)
     feat = L[i_lower].reshape(1, -1)
